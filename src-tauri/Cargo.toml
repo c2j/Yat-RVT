@@ -13,11 +13,11 @@ name = "tauri_react_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "1", features = [] }
 
 [dependencies]
 # Tauri
-tauri = { version = "2.0.0", features = [] }
+tauri = { version = "1.0.0", features = ["shell-open"] }
 #wry = "0.35"
 
 # Serialization
