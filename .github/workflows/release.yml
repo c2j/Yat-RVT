@@ -127,34 +127,36 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Delete existing release
-        run: |
-          gh release delete ${{ github.ref_name }} --yes || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          files: artifacts/**/*
-          fail_on_unmatched_files: false
-          body: |
-            ## Release ${{ github.ref_name }}
+        run: |
+          # Find all artifact files
+          find artifacts -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) > files.txt
+          
+          # Create release with files
+          if [ -s files.txt ]; then
+            gh release create ${{ github.ref_name }} \
+              --draft \
+              --title "App ${{ github.ref_name }}" \
+              --notes "## Release ${{ github.ref_name }}
 
-            ### Installation
+          ### Installation
 
-            Download the appropriate binary for your platform:
+          Download the appropriate binary for your platform:
 
-            **Windows:**
-            - `.msi` or `-setup.exe` files
+          **Windows:**
+          - \`.msi\` or \`-setup.exe\` files
 
-            **Linux:**
-            - x86_64: `.deb` or `.AppImage`
-            - ARM64: `.deb` only
+          **Linux:**
+          - x86_64: \`.deb\` or \`.AppImage\`
+          - ARM64: \`.deb\` only
 
-            **macOS:**
-            - Intel: `x64.dmg`
-            - Apple Silicon: `aarch64.dmg`
+          **macOS:**
+          - Intel: \`x64.dmg\`
+          - Apple Silicon: \`aarch64.dmg\`" \
+              $(cat files.txt)
+          else
+            echo "No files found to upload"
+            exit 1
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
