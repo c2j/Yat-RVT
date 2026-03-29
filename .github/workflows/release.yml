@@ -127,16 +127,37 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Create Release
+      - name: Debug artifacts structure
         run: |
-          # Find all artifact files
-          find artifacts -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) > files.txt
+          echo "Artifacts directory structure:"
+          ls -la artifacts/
+          find artifacts -type f
+
+      - name: Extract and upload release assets
+        run: |
+          # Create temp directory for extracted files
+          mkdir -p release_assets
+          
+          # Extract each artifact zip file
+          for zip in artifacts/*.zip; do
+            if [ -f "$zip" ]; then
+              echo "Extracting $zip"
+              unzip -o "$zip" -d release_assets/
+            fi
+          done
+          
+          # Find all build artifacts
+          find release_assets -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) > files.txt
+          
+          echo "Files found for release:"
+          cat files.txt
           
           # Create release with files
           if [ -s files.txt ]; then
             gh release create ${{ github.ref_name }} \
               --draft \
               --title "App ${{ github.ref_name }}" \
+              $(cat files.txt) \
               --notes "## Release ${{ github.ref_name }}
 
           ### Installation
@@ -152,8 +173,7 @@ jobs:
 
           **macOS:**
           - Intel: \`x64.dmg\`
-          - Apple Silicon: \`aarch64.dmg\`" \
-              $(cat files.txt)
+          - Apple Silicon: \`aarch64.dmg\`"
           else
             echo "No files found to upload"
             exit 1
