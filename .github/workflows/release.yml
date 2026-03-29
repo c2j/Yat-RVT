@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -23,6 +26,8 @@ jobs:
             target: aarch64-unknown-linux-gnu
             arch: arm64
             os: linux
+            # ARM cross-compilation requires special handling
+            experimental: true
           - platform: macos-latest
             target: x86_64-apple-darwin
             arch: x86_64
@@ -48,22 +53,32 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install dependencies (Ubuntu only)
-        if: matrix.os == 'linux'
+      - name: Install dependencies (Ubuntu x86_64)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf libsoup2.4-dev
 
-      - name: Install cross-compilation tools (Linux ARM64)
+      - name: Install dependencies (Ubuntu ARM64 cross-compile)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
+          sudo dpkg --add-architecture arm64
+          sudo sed -i 's|^deb \[arch=amd64\]|deb [arch=amd64,arm64]|g' /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64 libappindicator3-dev:arm64 librsvg2-dev:arm64 libsoup2.4-dev:arm64 libssl-dev:arm64
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build Tauri App
+      - name: Build Tauri App (x86_64 Linux/macOS/Windows)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
@@ -83,7 +98,7 @@ jobs:
 
             **Linux:**
             - x86_64: Download `.deb` or `.AppImage` file
-            - ARM64: Download `.deb` or `.AppImage` file
+            - ARM64: Download `.deb` file (AppImage not supported for cross-compilation)
 
             **macOS:**
             - Intel: Download `Tauri React App_${{ github.ref_name }}_x64.dmg`
@@ -94,3 +109,27 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
+
+      - name: Build Tauri App (ARM64 Linux - .deb only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        id: tauri_build_arm
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App ${{ github.ref_name }}'
+          releaseBody: |
+            ## Release ${{ github.ref_name }}
+
+            ### Installation
+
+            **Linux ARM64:**
+            - Download `.deb` file (AppImage not supported for cross-compilation)
+
+            ### Changelog
+            See the full changelog for details.
+          releaseDraft: true
+          prerelease: false
+          # Build only .deb, skip AppImage for ARM cross-compilation
+          args: --target ${{ matrix.target }} --bundles deb
