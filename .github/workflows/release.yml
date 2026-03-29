@@ -91,31 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'App ${{ github.ref_name }}'
-          releaseBody: |
-            ## Release ${{ github.ref_name }}
-
-            ### Installation
-
-            Download the appropriate binary for your platform:
-
-            **Windows:**
-            - Download `Tauri React App_${{ github.ref_name }}_x64-setup.exe` or `Tauri React App_${{ github.ref_name }}_x64_zh-CN.msi`
-
-            **Linux:**
-            - x86_64: Download `.deb` or `.AppImage` file
-            - ARM64: Download `.deb` file (AppImage not supported for cross-compilation)
-
-            **macOS:**
-            - Intel: Download `Tauri React App_${{ github.ref_name }}_x64.dmg`
-            - Apple Silicon: Download `Tauri React App_${{ github.ref_name }}_aarch64.dmg`
-
-            ### Changelog
-            See the full changelog for details.
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: false
+          # Only build, don't create release (we handle that in the release job)
           args: --target ${{ matrix.target }}
 
       - name: Build Tauri App (ARM64 Linux - .deb only)
@@ -125,22 +101,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'App ${{ github.ref_name }}'
-          releaseBody: |
-            ## Release ${{ github.ref_name }}
-
-            ### Installation
-
-            **Linux ARM64:**
-            - Download `.deb` file (AppImage not supported for cross-compilation)
-
-            ### Changelog
-            See the full changelog for details.
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: false
-          # Build only .deb, skip AppImage for ARM cross-compilation
           args: --target ${{ matrix.target }} --bundles deb
 
       - name: Upload Artifacts
@@ -167,11 +127,18 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Delete existing release
+        run: |
+          gh release delete ${{ github.ref_name }} --yes || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           draft: true
           files: artifacts/**/*
+          fail_on_unmatched_files: false
           body: |
             ## Release ${{ github.ref_name }}
 
