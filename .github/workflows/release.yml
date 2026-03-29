@@ -138,18 +138,24 @@ jobs:
           # Create temp directory for extracted files
           mkdir -p release_assets
           
-          # Extract each artifact zip file
-          for zip in artifacts/*.zip; do
-            if [ -f "$zip" ]; then
-              echo "Extracting $zip"
-              unzip -o "$zip" -d release_assets/
+          # Artifacts are downloaded as zip files, extract each
+          for item in artifacts/*; do
+            if [ -f "$item" ]; then
+              echo "Extracting $item"
+              unzip -o "$item" -d release_assets/
+            elif [ -d "$item" ]; then
+              echo "Found directory $item, copying contents"
+              cp -r "$item"/* release_assets/ 2>/dev/null || true
             fi
           done
+          
+          echo "=== Final directory structure ==="
+          find release_assets -type f
           
           # Find all build artifacts
           find release_assets -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) > files.txt
           
-          echo "Files found for release:"
+          echo "=== Files for release ==="
           cat files.txt
           
           # Create release with files
