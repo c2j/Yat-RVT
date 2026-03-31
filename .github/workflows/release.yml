@@ -112,24 +112,12 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build and Release Tauri App
+      - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'App ${{ github.ref_name }}'
-          releaseBody: |
-            See the assets below to download the installer for your platform.
-
-            **Windows:** `.msi` or `-setup.exe` files
-            **Linux:** `.deb` or `.AppImage`
-            **macOS:** `.dmg`
-          releaseDraft: true
-          prerelease: false
           args: --target ${{ matrix.target }} ${{ matrix.target == 'aarch64-unknown-linux-gnu' && '--bundles deb' || '' }}
 
-      # ── Upload artifacts for debugging ────────────────
+      # ── Upload artifacts ──────────────────────────────
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -143,3 +131,33 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Collect release files
+        id: collect
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" \) -exec cp {} release/ \;
+          count=$(find release -type f | wc -l)
+          echo "file_count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count release files:"
+          find release -type f -exec basename {} \;
+
+      - name: Create GitHub Release
+        if: steps.collect.outputs.file_count > 0
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
